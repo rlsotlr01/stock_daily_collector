@@ -17,18 +17,32 @@ def RequestData(obj, code):
     count = obj.GetHeaderValue(1)  # 데이터 개수
     print('카운트 : ',count)
 
-    sql_sent = "INSERT OR IGNORE INTO " + code + " VALUES( ?, ?, ?, ?, ?, ?, ?)"
-    conn = sqlite3.connect("stock_price(cur).db", isolation_level=None)
+    sql_sent = "INSERT OR IGNORE INTO " + code + " VALUES( ?, ?, ?, ?, ?, ?, ?, ?, ?, ?" \
+                                                 ", ?, ?, ?, ?, ?, ?, ?)"
+    conn = sqlite3.connect("stock_price(day).db", isolation_level=None)
     c = conn.cursor()
     for i in range(count):
-        date = obj.GetDataValue(0, i)  # 일자
-        open = obj.GetDataValue(1, i)  # 시가
-        high = obj.GetDataValue(2, i)  # 고가
-        low = obj.GetDataValue(3, i)  # 저가
-        close = obj.GetDataValue(4, i)  # 종가
-        diff = obj.GetDataValue(5, i)  # 종가
-        vol = obj.GetDataValue(6, i)  # 종가
-        c.execute(sql_sent, (date, open, high, low, close, diff, vol))
+        day = obj.GetDataValue(0, i)  # 일자
+        cur_pr = obj.GetDataValue(1, i)  # 시가
+        high_pr = obj.GetDataValue(2, i)  # 고가
+        low_pr = obj.GetDataValue(3, i)  # 저가
+        clo_pr = obj.GetDataValue(4, i)  # 종가
+        pr_diff = obj.GetDataValue(5, i)  # 종가
+        acc_vol = obj.GetDataValue(6, i)  # 누적 거래량
+        for_stor = obj.GetDataValue(7, i) # 외인 보유
+        for_stor_diff = obj.GetDataValue(8, i) # 외인 보유 전일 대비
+        for_perc = obj.GetDataValue(9, i) # 외인 비중
+        com_buy_vol = obj.GetDataValue(12, i) # 기관 순매수 수량
+        oot_cur_pr = obj.GetDataValue(13, i) # 시간외 단일가 시가
+        oot_high_pr = obj.GetDataValue(14, i) # 시간외 단일가 고가
+        oot_low_pr = obj.GetDataValue(15, i) # 시간외 단일가 저가
+        oot_clo_pr = obj.GetDataValue(16, i) # 시간외 단일가 종가
+        oot_pr_diff = obj.GetDataValue(18, i) # 시간외 단일가 전일대비
+        oot_vol = obj.GetDataValue(19, i) # 시간외 단일가 거래량
+        c.execute(sql_sent, (day, cur_pr, high_pr, low_pr, clo_pr, pr_diff,
+                             acc_vol, for_stor, for_stor_diff,
+                             for_perc, com_buy_vol, oot_cur_pr, oot_high_pr,
+                             oot_low_pr, oot_clo_pr, oot_pr_diff, oot_vol))
 
     return True
 
@@ -42,11 +56,19 @@ if (bConnect == 0):
     exit()
 
 #DB 생성
-conn = sqlite3.connect("stock_price(cur).db", isolation_level=None)
-
-codes = ["A009970", "A302440", "A005930", "A000810", "A032830", "A035420"]
+conn = sqlite3.connect("stock_price(day).db", isolation_level=None)
+c = conn.cursor()
+c.execute("select code from code_name")
+codes = c.fetchall()
+# c.fetchall 의 데이터타입은 list
+codes_list = []
+for code in codes:
+    codes_list.append(code[0])
+        # 위에는 DB에서 종목코드 가져오는 코딩. 제대로 작동함.
+codes = codes_list # 모든 종목코드를 담음.
 # 찾고 싶은 종목의 목록을 넣어준다
-# 이건 DB에서 가져오면 좋을 것 같다.
+# stock_price(day).db 안에 code_name 테이블에서 종목코드를 가져와서
+# codes 변수에 리스트로 담아준다. 이 기능 만들기.
 
 for code in codes:
     # 일자별 object 구하기
@@ -55,9 +77,13 @@ for code in codes:
     c = conn.cursor()
     # 테이블 생성 (테이블명은 코드이름)
     c.execute("CREATE TABLE IF NOT EXISTS " + code +
-              "(DAY date, CUR_PR integer, HIGH_PR integer, LOW_PR integer, CLO_PR integer"
-              ", PR_DIFF integer, ACC_VOL integer)")
-    sql_sent = "INSERT OR IGNORE INTO " + code + " VALUES( ?, ?, ?, ?, ?, ?, ?)"
+              "(DAY date PRIMARY KEY, CUR_PR integer, HIGH_PR integer, LOW_PR integer, CLO_PR integer"
+              ", PR_DIFF integer, ACC_VOL integer, FOR_STOR integer, FOR_STOR_DIFF integer"
+              ", FOR_PERC real, COM_BUY_VOL integer, OOT_CUR_PR integer, OOT_HIGH_PR integer"
+              ", OOT_LOW_PR integer, OOT_CLO_PR integer, OOT_PR_DIFF integer, OOT_VOL integer)")
+    sql_sent = "INSERT OR IGNORE INTO " + code + " VALUES( ?, ?, ?, ?, ?, ?, ?, ?, ?, ?" \
+                                                 ", ?, ?, ?, ?, ?, ?, ?)"
+#   17개 데이터
 
     objStockWeek.SetInputValue(0, code)  # 종목 코드 - 삼성전자
     # 0번 위치에 종목코드를 입력한다.
@@ -76,7 +102,7 @@ for code in codes:
     while objStockWeek.Continue:
         # 연속 조회처리 - 36일치 한번 불러올 때마다 NextCount 1씩 더해짐.
         NextCount += 1;
-        if (NextCount > 100):
+        if (NextCount > 1000000000000000):
             break
         ret = RequestData(objStockWeek, code)
         if ret == False:
